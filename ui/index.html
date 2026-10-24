@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ClearCommit — live interpretation</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Clear<span>Commit</span><small>TaskForge build</small></div>
+  <div class="top-status">
+    <span id="lang-pair" class="lang-pair" aria-label="Active languages">— ⇄ —</span>
+    <span id="status-pill" class="pill" data-state="idle">Idle</span>
+  </div>
+</header>
+
+<div class="shell">
+  <nav class="sidebar" aria-label="Sections">
+    <button class="nav-btn active" data-view="conversation" aria-current="page">Conversation</button>
+    <button class="nav-btn" data-view="audio">Audio & languages</button>
+    <button class="nav-btn" data-view="clarity">Clarity <span id="clarity-badge" class="badge hidden">0</span></button>
+    <div class="side-note" id="credentials-note" aria-live="polite"></div>
+  </nav>
+
+  <main class="main">
+    <!-- Conversation view -->
+    <section id="view-conversation" class="view active" aria-label="Conversation">
+      <div class="conv-layout">
+        <div class="feed-col">
+          <div id="empty-state" class="empty-state">
+            <h2>No conversation yet</h2>
+            <p>Pick your devices and languages, then start a session. Recognized
+               speech appears here as it is finalized — nothing is simulated.</p>
+            <button class="btn primary" id="empty-start-btn">Go to audio setup</button>
+          </div>
+          <div id="banner" class="banner hidden" role="alert"></div>
+          <div id="feed" class="feed" aria-live="polite" aria-label="Live transcript"></div>
+        </div>
+        <aside id="clarity-rail" class="clarity-rail" aria-label="Conversation clarity">
+          <h3>Conversation clarity</h3>
+          <p class="rail-hint">Possible ambiguities found in finalized speech.
+             Suggestions only — you choose what to do.</p>
+          <div id="clarity-off" class="rail-off hidden">
+            Clarity needs an AI provider (set <code>GROQ_API_KEY</code> or an
+            OpenRouter key, then restart).
+          </div>
+          <div id="clarity-list" class="clarity-list"></div>
+          <div id="clarity-empty" class="rail-empty">Nothing ambiguous so far.</div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Audio & languages view -->
+    <section id="view-audio" class="view" aria-label="Audio and languages">
+      <div class="audio-grid">
+        <div class="card">
+          <h3>Devices</h3>
+          <label for="input-device">Microphone (your speech)</label>
+          <select id="input-device" aria-describedby="device-help"></select>
+          <label for="output-device">TTS output (their language)</label>
+          <select id="output-device"></select>
+          <p class="help" id="device-help">For Discord calls route TTS output to
+             CABLE Input (VB-Cable) and set Discord's input to CABLE Output.</p>
+          <button class="btn" id="refresh-devices">Refresh devices</button>
+        </div>
+        <div class="card">
+          <h3>Languages</h3>
+          <label for="p1-lang">Their language (Person 1)</label>
+          <select id="p1-lang"></select>
+          <label for="user-lang">Your language</label>
+          <select id="user-lang"></select>
+          <p class="help">Changes apply to the next session.</p>
+        </div>
+        <div class="card session-card">
+          <h3>Session</h3>
+          <div class="btn-row">
+            <button class="btn primary" id="start-btn">Start</button>
+            <button class="btn" id="pause-btn" disabled>Pause view</button>
+            <button class="btn danger" id="stop-btn" disabled>Stop</button>
+          </div>
+          <p class="help" id="session-help">Pause freezes the transcript view;
+             audio keeps flowing so the conversation is never interrupted.</p>
+          <div id="device-status" class="device-status" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast" class="toast hidden" role="status"></div>
+<script src="app.js"></script>
+</body>
+</html>

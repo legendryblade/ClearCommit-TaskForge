@@ -1,0 +1,8 @@
+python-dotenv
+numpy
+requests
+sounddevice
+websocket-client
+pywebview
+pytest
+pytest-asyncio
