@@ -35,7 +35,9 @@ For Discord calls: install VB-Cable, route the app's TTS output to
   preselected; understandable errors when enumeration or startup fails.
 - **Recognizer choice**: cloud Groq Whisper (needs key) or **local offline
   Whisper** (`pip install faster-whisper`, no key, no network, private —
-  downloads the model on first use).
+  downloads the model on first use). Local Whisper runs from the source
+  launcher; the packaged EXE ships the cloud recognizer to keep the build
+  light and fast.
 - **Auto-detect**: Person 1's language can be fixed or auto-detected per
   utterance. The AI provider for Clarity is auto-detected too
   (`TASKFORGE_AI_PRESET=auto` picks the first provider that has a key).

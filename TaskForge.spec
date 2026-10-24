@@ -17,7 +17,12 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['tkinter', 'matplotlib', 'PIL', 'pytest'],
+    excludes=[
+        "psutil", "IPython", "jedi", "pandas", "PyQt5", "PySide2", "PyQt6",
+        "PySide6", "torch", "tensorflow", "scipy", "matplotlib",
+        "gradio", "discord", "numpy.tests", "pytest", "tkinter.test", "faster_whisper", "ctranslate2",
+        "transformers", "pydub", "soundfile", "av",
+    ],
     noarchive=False,
 )
 pyz = PYZ(a.pure)
