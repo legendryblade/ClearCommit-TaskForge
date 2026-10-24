@@ -17,9 +17,26 @@
 
 <div class="shell">
   <nav class="sidebar" aria-label="Sections">
-    <button class="nav-btn active" data-view="conversation" aria-current="page">Conversation</button>
-    <button class="nav-btn" data-view="audio">Audio & languages</button>
-    <button class="nav-btn" data-view="clarity">Clarity <span id="clarity-badge" class="badge hidden">0</span></button>
+    <div class="side-head">
+      <span id="side-dot" class="dot" data-state="idle" aria-hidden="true"></span>
+      <span id="side-state" class="side-state-text">Not started</span>
+    </div>
+
+    <button class="nav-btn active" data-view="conversation" aria-current="page">
+      <span class="nav-ico" aria-hidden="true">▤</span>Conversation</button>
+    <button class="nav-btn" data-view="audio">
+      <span class="nav-ico" aria-hidden="true">♫</span>Audio &amp; languages</button>
+    <button class="nav-btn" data-view="clarity">
+      <span class="nav-ico" aria-hidden="true">◇</span>Clarity
+      <span id="clarity-badge" class="badge hidden">0</span></button>
+
+    <div class="side-tools">
+      <div class="side-tools-label">Session</div>
+      <button class="side-action primary" id="start-btn">▶ Start</button>
+      <button class="side-action" id="pause-btn" disabled>⏸ Pause view</button>
+      <button class="side-action danger" id="stop-btn" disabled>■ Stop</button>
+      <div id="side-status" class="side-status" aria-live="polite">Idle — pick devices, then start.</div>
+    </div>
     <div class="side-note" id="credentials-note" aria-live="polite"></div>
   </nav>
 
@@ -34,16 +51,16 @@
                speech appears here as it is finalized — nothing is simulated.</p>
             <button class="btn primary" id="empty-start-btn">Go to audio setup</button>
           </div>
-          <div id="banner" class="banner hidden" role="alert"></div>
           <div id="feed" class="feed" aria-live="polite" aria-label="Live transcript"></div>
         </div>
         <aside id="clarity-rail" class="clarity-rail" aria-label="Conversation clarity">
           <h3>Conversation clarity</h3>
-          <p class="rail-hint">Possible ambiguities found in finalized speech.
-             Suggestions only — you choose what to do.</p>
+          <p class="rail-hint">Possible ambiguities in finalized speech.
+             Suggestions only — you decide what happens.</p>
           <div id="clarity-off" class="rail-off hidden">
-            Clarity needs an AI provider (set <code>GROQ_API_KEY</code> or an
-            OpenRouter key, then restart).
+            Clarity needs an AI provider. Set <code>GROQ_API_KEY</code> (or an
+            OpenRouter key) and restart — provider auto-detection picks the
+            first key it finds, or set <code>TASKFORGE_AI_PRESET</code>.
           </div>
           <div id="clarity-list" class="clarity-list"></div>
           <div id="clarity-empty" class="rail-empty">Nothing ambiguous so far.</div>
@@ -60,9 +77,10 @@
           <select id="input-device" aria-describedby="device-help"></select>
           <label for="output-device">TTS output (their language)</label>
           <select id="output-device"></select>
-          <p class="help" id="device-help">For Discord calls route TTS output to
+          <p class="help" id="device-help">For Discord calls, route TTS output to
              CABLE Input (VB-Cable) and set Discord's input to CABLE Output.</p>
           <button class="btn" id="refresh-devices">Refresh devices</button>
+          <div id="device-status" class="device-status" aria-live="polite"></div>
         </div>
         <div class="card">
           <h3>Languages</h3>
@@ -70,25 +88,42 @@
           <select id="p1-lang"></select>
           <label for="user-lang">Your language</label>
           <select id="user-lang"></select>
-          <p class="help">Changes apply to the next session.</p>
+          <p class="help"><b>Auto-detect</b> lets the recognizer identify the
+             spoken language per utterance. Otherwise one language is fixed
+             per side.</p>
         </div>
-        <div class="card session-card">
-          <h3>Session</h3>
-          <div class="btn-row">
-            <button class="btn primary" id="start-btn">Start</button>
-            <button class="btn" id="pause-btn" disabled>Pause view</button>
-            <button class="btn danger" id="stop-btn" disabled>Stop</button>
-          </div>
-          <p class="help" id="session-help">Pause freezes the transcript view;
-             audio keeps flowing so the conversation is never interrupted.</p>
-          <div id="device-status" class="device-status" aria-live="polite"></div>
+        <div class="card">
+          <h3>Speech recognition</h3>
+          <label for="stt-backend">Recognizer</label>
+          <select id="stt-backend">
+            <option value="cloud">Cloud — Groq Whisper (needs GROQ_API_KEY)</option>
+            <option value="local">Local — offline Whisper (no key, no network;
+              downloads the model on first use)</option>
+          </select>
+          <p class="help">Local Whisper is fully private and works offline,
+             but is slower and downloads ~150&nbsp;MB on first run.</p>
         </div>
+      </div>
+    </section>
+
+    <!-- Clarity view (focused) -->
+    <section id="view-clarity" class="view" aria-label="Clarity">
+      <div class="clarity-full">
+        <h3>Conversation clarity</h3>
+        <p class="rail-hint">Every finalized utterance is checked for wording a
+           listener could miss. Suggested clarifications are yours to edit and
+           approve — they are never sent or spoken automatically.</p>
+        <div id="clarity-off-2" class="rail-off hidden">
+          Clarity is off: no AI provider key found.
+        </div>
+        <div id="clarity-list-2" class="clarity-list"></div>
+        <div id="clarity-empty-2" class="rail-empty" class="rail-empty">Nothing ambiguous so far.</div>
       </div>
     </section>
   </main>
 </div>
 
-<div id="toast" class="toast hidden" role="status"></div>
+<div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 <script src="app.js"></script>
 </body>
 </html>

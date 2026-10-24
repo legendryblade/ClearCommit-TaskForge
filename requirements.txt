@@ -4,5 +4,6 @@ requests
 sounddevice
 websocket-client
 pywebview
+faster-whisper
 pytest
 pytest-asyncio

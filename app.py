@@ -49,7 +49,21 @@ def _credentials():
         "groq": bool(os.environ.get("GROQ_API_KEY")),
         "deepgram": bool(os.environ.get("DEEPGRAM_API_KEY")),
         "elevenlabs": bool(os.environ.get("ELEVENLABS_API_KEY")),
+        "openrouter": bool(os.environ.get("OPENROUTER_API_KEY")),
+        "custom": bool(os.environ.get("CUSTOM_AI_API_KEY")),
     }
+
+
+def _resolve_provider_preset() -> str:
+    """TASKFORGE_AI_PRESET: explicit preset, or 'auto' = first preset that
+    actually has a key available."""
+    wanted = (os.environ.get("TASKFORGE_AI_PRESET") or "auto").strip().lower()
+    if wanted != "auto":
+        return wanted
+    for preset in ("groq", "openrouter", "custom"):
+        if _credentials().get(preset):
+            return preset
+    return "groq"
 
 
 def _audio_devices():
@@ -125,10 +139,21 @@ class Backend:
                 return json.dumps({"ok": False,
                                    "error": "A session is already running."})
             self._state = "starting"
+        self._start_cfg = dict(cfg or {})
+        self._set_state("starting", "Opening audio devices…")
+        # Construction opens devices and can take seconds; keep the bridge
+        # responsive by doing it off the caller's thread.
+        threading.Thread(target=self._start_worker, name="session-start",
+                         daemon=True).start()
+        return json.dumps({"ok": True})
+
+    def _start_worker(self) -> None:
+        cfg = getattr(self, "_start_cfg", {})
         try:
             from stream_pipeline import StreamingInterpreter
 
-            person1_lang = str(cfg.get("person1_lang") or "es")
+            auto = str(cfg.get("person1_lang") or "es").lower() == "auto"
+            person1_lang = "en" if auto else str(cfg.get("person1_lang") or "es")
             mic = cfg.get("input_device")
             out = cfg.get("output_device")
             self.interp = StreamingInterpreter(
@@ -138,16 +163,25 @@ class Backend:
                 tts_output_device=(int(out) if out not in (None, "", -1)
                                    else None),
                 person1_loopback=True,
+                force_language=not auto,
                 groq_api_key=os.environ.get("GROQ_API_KEY"),
                 deepgram_api_key=os.environ.get("DEEPGRAM_API_KEY"),
                 on_final_utterance=self._on_final_utterance,
             )
+            stt = str(cfg.get("stt_backend") or "cloud").lower()
+            if stt == "local":
+                from local_whisper import LocalWhisperTranscriber
+                self.interp.transcriber_p1 = LocalWhisperTranscriber()
+                self.interp.transcriber_user = LocalWhisperTranscriber()
+                self.push(bp.status_event("starting",
+                                          "Local Whisper model loading…"))
         except Exception as exc:  # noqa: BLE001
             logger.exception("Pipeline construction failed")
             with self._lock:
                 self._state = "idle"
-            return json.dumps({"ok": False,
-                               "error": f"Could not start audio pipeline: {exc}"})
+            self._set_state("error",
+                            f"Could not start audio pipeline: {exc}")
+            return
 
         self._make_clarity_engine()
         self._stop_poll.clear()
@@ -156,7 +190,7 @@ class Backend:
         self._worker.start()
         threading.Thread(target=self._poll_loop, name="event-pump",
                          daemon=True).start()
-        return json.dumps({"ok": True})
+        self._set_state("running")
 
     def _run_pipeline(self) -> None:
         try:
@@ -263,7 +297,36 @@ class Backend:
 backend = Backend()
 
 
-def main():
+def selftest() -> int:
+    """Headless verification that the frozen build has everything it needs."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)-7s | %(name)s | %(message)s")
+    ok = True
+    for mod in ("wave", "numpy", "requests", "sounddevice", "webview"):
+        try:
+            __import__(mod)
+            print(f"OK   {mod}")
+        except Exception as exc:  # noqa: BLE001
+            ok = False
+            print(f"FAIL {mod}: {exc}")
+    try:
+        from stream_pipeline import StreamingInterpreter  # noqa: F401
+        print("OK   stream_pipeline")
+    except Exception as exc:  # noqa: BLE001
+        ok = False
+        print(f"FAIL stream_pipeline: {exc}")
+    devices = _audio_devices()
+    print(f"INFO devices: {len(devices.get('inputs', []))} in / "
+          f"{len(devices.get('outputs', []))} out, error={devices.get('error')}")
+    creds = _credentials()
+    print(f"INFO credentials: {creds}")
+    print("SELFTEST", "PASS" if ok else "FAIL")
+    return 0 if ok else 1
+
+
+def main(argv=None):
+    argv = list(argv if argv is not None else sys.argv[1:])
+    if "--selftest" in argv:
+        return selftest()
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s | %(levelname)-7s | %(name)s | "
                                "%(message)s")

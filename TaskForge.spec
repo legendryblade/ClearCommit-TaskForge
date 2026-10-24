@@ -1,13 +1,13 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller spec for ClearCommit TaskForge (onedir).
-# The engine/ modules are imported at runtime from a sys.path insert, so they
-# ship as data files next to app.py; ui/ ships as data for the webview.
+# engine/ is on pathex so the modules are ANALYZED as source (their stdlib
+# imports like wave/... get bundled). ui/ ships as data for the webview.
 
 a = Analysis(
     ['app.py'],
-    pathex=[],
+    pathex=[r'D:\ClearCommit-TaskForge\engine'],
     binaries=[],
-    datas=[('ui', 'ui'), ('engine', 'engine')],
+    datas=[('ui', 'ui')],
     hiddenimports=[
         'stream_pipeline', 'transcriber', 'audio_capture', 'loopback_capture',
         'config', 'logger', 'utils', 'translator', 'nvidia_stream',
@@ -32,7 +32,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
-    console=False,
+    console=True,
 )
 coll = COLLECT(
     exe,

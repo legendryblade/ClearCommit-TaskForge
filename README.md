@@ -33,6 +33,12 @@ For Discord calls: install VB-Cable, route the app's TTS output to
   proven engine from the pre-existing ClearCommit project (see ATTRIBUTION).
 - **Device selection**: real enumeration via sounddevice; default devices
   preselected; understandable errors when enumeration or startup fails.
+- **Recognizer choice**: cloud Groq Whisper (needs key) or **local offline
+  Whisper** (`pip install faster-whisper`, no key, no network, private —
+  downloads the model on first use).
+- **Auto-detect**: Person 1's language can be fixed or auto-detected per
+  utterance. The AI provider for Clarity is auto-detected too
+  (`TASKFORGE_AI_PRESET=auto` picks the first provider that has a key).
 - **Conversation Clarity** (new, built for TaskForge): after each finalized
   utterance, the configured LLM is asked to identify at most one materially
   plausible ambiguity. Output is validated deterministically — a "quote" that
@@ -77,7 +83,17 @@ mic / loopback ──► StreamingInterpreter (engine/) ──► pop_captions()
 
 ```
 python -m pytest tests/ -q
+python app.py --selftest   # checks deps/devices/credentials incl. frozen builds
 ```
+
+## Troubleshooting
+
+- **No audio devices listed** — check the OS input device; run
+  `python app.py --selftest` to see what the app can see.
+- **Pipeline fails to start** — the error is shown in the app banner AND as a
+  toast from any view; `--selftest` pinpoints missing modules/credentials.
+- **STT errors with the local recognizer** — install `faster-whisper`
+  (`pip install -r requirements.txt` covers it) or switch to Cloud.
 
 ## TaskForge integrity notes
 

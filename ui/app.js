@@ -3,9 +3,9 @@
 
 const $ = (id) => document.getElementById(id);
 const feed = $("feed");
-const clarityList = $("clarity-list");
+const clarityLists = [$("clarity-list"), $("clarity-list-2")];
 const pendingByUid = new Map();   // uid -> caption element awaiting translation
-const findingsById = new Map();
+const findings = new Map();
 let sessionState = "idle";
 
 /* ---------- event plumbing (Python pushes here) ---------- */
@@ -26,18 +26,20 @@ window.__push = function (payload) {
 
 function onHello(payload) {
   const creds = payload.credentials || {};
-  const bits = [];
-  bits.push((creds.groq ? "✓" : "✗") + " Groq key");
-  bits.push((creds.deepgram ? "✓" : "✗") + " Deepgram key");
-  $("credentials-note").textContent = bits.join(" · ");
+  const label = (v, name) => (v ? "✓ " : "✗ ") + name;
+  $("credentials-note").textContent =
+    label(creds.groq, "Groq") + " · " + label(creds.deepgram, "Deepgram") +
+    " · " + label(creds.elevenlabs, "ElevenLabs");
   $("clarity-off").classList.toggle("hidden", !!payload.clarity_provider);
+  $("clarity-off-2").classList.toggle("hidden", !!payload.clarity_provider);
   const p1 = $("p1-lang"), ul = $("user-lang");
   p1.innerHTML = ""; ul.innerHTML = "";
   for (const code of payload.languages || []) {
     p1.add(new Option(code, code));
     ul.add(new Option(code, code));
   }
-  p1.value = "es"; ul.value = "en";
+  p1.add(new Option("Auto-detect", "auto"));
+  p1.value = "auto"; ul.value = "en";
   updateLangPair();
 }
 
@@ -45,10 +47,17 @@ function onStatus(payload) {
   sessionState = payload.state;
   const pill = $("status-pill");
   pill.dataset.state = payload.state;
-  pill.textContent =
-    { idle: "Idle", starting: "Starting…", running: "Listening",
+  const text = { idle: "Idle", starting: "Starting…", running: "Listening",
       paused: "View paused", stopped: "Stopped",
       error: "Error" }[payload.state] || payload.state;
+  pill.textContent = text;
+  $("side-dot").dataset.state = payload.state;
+  $("side-state").textContent = text;
+  $("side-status").textContent =
+    payload.message || { idle: "Idle — pick devices, then start.",
+      running: "Listening — speak naturally.",
+      paused: "View paused — audio continues.",
+      stopped: "Stopped." }[payload.state] || "";
   $("start-btn").disabled = payload.state === "running" ||
     payload.state === "starting";
   $("stop-btn").disabled = payload.state === "idle" ||
@@ -56,14 +65,18 @@ function onStatus(payload) {
   $("pause-btn").disabled = payload.state !== "running" &&
     payload.state !== "paused";
   $("pause-btn").textContent = payload.state === "paused"
-    ? "Resume view" : "Pause view";
-  if (payload.message) showError(payload.message);
+    ? "▶ Resume view" : "⏸ Pause view";
+  if (payload.state === "error" && payload.message) {
+    showError(payload.message);  // always visible, from any view
+  }
 }
 
 function showError(message) {
-  const banner = $("banner");
-  banner.textContent = message;
-  banner.classList.remove("hidden");
+  const toast = $("toast");
+  toast.textContent = message;
+  toast.classList.remove("hidden");
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.add("hidden"), 9000);
 }
 
 /* ---------- captions ---------- */
@@ -72,12 +85,13 @@ function onCaption(ev) {
   if (ev.kind === "orig") {
     const el = document.createElement("article");
     el.className = "cap " + ev.side;
-    const who = ev.side === "you" ? "You" : "Person 1";
+    el.dataset.uid = String(ev.uid);
     el.innerHTML =
       '<div class="cap-head"><span class="cap-who"></span>' +
       '<span class="cap-meta"></span><span class="cap-ts"></span></div>' +
       '<p class="cap-orig"></p><p class="cap-trans hidden"></p>';
-    el.querySelector(".cap-who").textContent = who;
+    el.querySelector(".cap-who").textContent =
+      ev.side === "you" ? "You" : "Person 1";
     el.querySelector(".cap-meta").textContent = ev.meta || "";
     el.querySelector(".cap-ts").textContent =
       new Date().toLocaleTimeString();
@@ -96,83 +110,103 @@ function onCaption(ev) {
   }
 }
 
-/* ---------- clarity ---------- */
-function onClarity(finding) {
-  findingsById.set(finding.finding_id, finding);
+/* ---------- clarity (rendered into both placements) ---------- */
+function onClarity(f) {
+  findings.set(f.finding_id, f);
   $("clarity-empty").classList.add("hidden");
-  const card = document.createElement("article");
-  card.className = "finding";
-  card.dataset.id = finding.finding_id;
-  const li = (finding.interpretations || [])
-    .map((x) => '<li class="interp"></li>').join("");
-  card.innerHTML =
-    '<div class="quote"></div>' +
-    '<div class="why"></div>' +
-    (li ? '<ul>' + li + '</ul>' : "") +
-    '<div class="conf"><span>model confidence</span>' +
-    '<span class="conf-bar"><span class="conf-fill"></span></span>' +
-    '<span class="conf-num"></span></div>' +
-    '<label for="clar-' + finding.finding_id + '">Suggested clarification (editable)</label>' +
-    '<textarea id="clar-' + finding.finding_id + '"></textarea>' +
-    '<div class="actions"><button class="btn primary approve">Approve</button>' +
-    '<button class="btn dismiss">Dismiss</button></div>';
-  card.querySelector(".quote").textContent = "“" + finding.quote + "”";
-  card.querySelector(".why").textContent = finding.why;
-  const items = card.querySelectorAll(".interp");
-  (finding.interpretations || []).forEach((x, i) => {
-    items[i].textContent = x;
-  });
-  card.querySelector(".conf-fill").style.width =
-    Math.round(finding.confidence * 100) + "%";
-  card.querySelector(".conf-num").textContent =
-    Math.round(finding.confidence * 100) + "%";
-  card.querySelector("textarea").value = finding.suggested_clarification;
-  card.querySelector(".approve").addEventListener("click", () => {
-    pywebview.api.clarify_approve(finding.finding_id,
-      card.querySelector("textarea").value);
-  });
-  card.querySelector(".dismiss").addEventListener("click", () => {
-    pywebview.api.clarify_dismiss(finding.finding_id);
-  });
-  clarityList.prepend(card);
+  $("clarity-empty-2").classList.add("hidden");
+  const plain = [];
+  for (const list of clarityLists) {
+    const existing = list.querySelector('[data-id="' + f.finding_id + '"]');
+    if (existing) existing.remove();
+    const card = document.createElement("article");
+    card.className = "finding";
+    card.dataset.id = f.finding_id;
+    card.innerHTML =
+      '<div class="speaker"></div>' +
+      '<div class="quote"></div>' +
+      '<div class="why"></div>' +
+      '<ul class="interps"></ul>' +
+      '<div class="conf"><span>model confidence</span>' +
+      '<span class="conf-bar"><span class="conf-fill"></span></span>' +
+      '<span class="conf-num"></span></div>' +
+      '<label>Suggested clarification (editable)</label>' +
+      '<textarea rows="3"></textarea>' +
+      '<div class="actions"><button class="btn primary approve">Approve</button>' +
+      '<button class="btn dismiss">Dismiss</button></div>';
+    card.querySelector(".speaker").textContent =
+      "From " + (f.speaker === "you" ? "you" : "Person 1") +
+      " — “" + f.quote + "”";
+    card.querySelector(".why").textContent = f.why;
+    const ul = card.querySelector(".interps");
+    for (const interp of f.interpretations || []) {
+      const li = document.createElement("li");
+      li.textContent = interp;
+      ul.appendChild(li);
+    }
+    card.querySelector(".conf-fill").style.width =
+      Math.round(f.confidence * 100) + "%";
+    card.querySelector(".conf-num").textContent =
+      Math.round(f.confidence * 100) + "%";
+    card.querySelector("textarea").value = f.suggested_clarification;
+    list.prepend(card);
+    plain.push(card);
+  }
   updateBadge();
 }
 
-function onClarityResolved(payload) {
-  const card = clarityList.querySelector(
-    '.finding[data-id="' + payload.finding_id + '"]');
-  if (!card) return;
-  if (payload.status === "approved") {
-    card.classList.add("approved");
-    const note = document.createElement("div");
-    note.className = "approved-note";
-    note.textContent = "Approved — shown here only, not sent or spoken.";
-    card.querySelector(".actions").replaceWith(note);
-  } else {
-    card.remove();
+function onClarityResolved(p) {
+  for (const card of document.querySelectorAll(
+      '.finding[data-id="' + p.finding_id + '"]')) {
+    if (p.status === "approved") {
+      card.classList.add("approved");
+      const note = document.createElement("div");
+      note.className = "approved-note";
+      note.textContent = "Approved — shown here only, not sent or spoken.";
+      const actions = card.querySelector(".actions");
+      if (actions) actions.replaceWith(note);
+    } else {
+      card.remove();
+    }
   }
+  const f = findings.get(p.finding_id);
+  if (f) f.status = p.status;
   updateBadge();
 }
 
 function updateBadge() {
   let n = 0;
-  clarityList.querySelectorAll(".finding:not(.approved)").forEach((el) => {
-    const f = findingsById.get(el.dataset.id);
-    if (f && f.status === "pending") n += 1;
-  });
+  findings.forEach((f) => { if (f.status === "pending") n += 1; });
   const badge = $("clarity-badge");
   badge.textContent = String(n);
   badge.classList.toggle("hidden", n === 0);
 }
 
+/* delegated clicks work in both clarity placements */
+document.addEventListener("click", (ev) => {
+  const card = ev.target.closest(".finding");
+  if (!card || !window.pywebview || !window.pywebview.api) return;
+  const id = card.dataset.id;
+  if (ev.target.classList.contains("approve")) {
+    pywebview.api.clarify_approve(id, card.querySelector("textarea").value);
+  } else if (ev.target.classList.contains("dismiss")) {
+    pywebview.api.clarify_dismiss(id);
+  }
+});
+
 /* ---------- controls ---------- */
 async function refreshDevices() {
+  if (!window.pywebview || !window.pywebview.api) {
+    setTimeout(refreshDevices, 200); return;
+  }
   try {
     const data = JSON.parse(await pywebview.api.list_audio_devices());
     const inSel = $("input-device"), outSel = $("output-device");
     inSel.innerHTML = ""; outSel.innerHTML = "";
     if (!(data.inputs || []).length) {
       inSel.add(new Option("No input devices found", "-1"));
+      showError("No microphone/capture devices were found. " +
+                (data.error || "Check your audio drivers."));
     }
     for (const d of data.inputs || []) inSel.add(new Option(d.name, d.index));
     for (const d of data.outputs || []) outSel.add(new Option(d.name, d.index));
@@ -180,7 +214,7 @@ async function refreshDevices() {
     if (data.default_output >= 0) outSel.value = String(data.default_output);
     $("device-status").textContent =
       (data.inputs || []).length + " input · " +
-      (data.outputs || []).length + " output devices detected" +
+      (data.outputs || []).length + " output devices" +
       (data.error ? " — " + data.error : "");
   } catch (err) {
     showError("Could not enumerate audio devices: " + err);
@@ -188,18 +222,30 @@ async function refreshDevices() {
 }
 
 async function startSession() {
-  const res = JSON.parse(await pywebview.api.start_session({
-    person1_lang: $("p1-lang").value,
-    user_lang: $("user-lang").value,
-    input_device: Number($("input-device").value),
-    output_device: Number($("output-device").value),
-  }));
-  if (!res.ok) showError(res.error || "Could not start the session.");
+  if (!window.pywebview || !window.pywebview.api) {
+    showError("The Python bridge is not ready yet. Try again in a moment.");
+    return;
+  }
+  onStatus({ state: "starting", message: "Opening audio devices…" });
+  try {
+    const res = JSON.parse(await pywebview.api.start_session({
+      person1_lang: $("p1-lang").value,
+      user_lang: $("user-lang").value,
+      input_device: Number($("input-device").value),
+      output_device: Number($("output-device").value),
+      stt_backend: $("stt-backend").value,
+    }));
+    if (!res.ok) showError(res.error || "Could not start the session.");
+  } catch (err) {
+    showError("Start failed: " + err);
+    onStatus({ state: "error", message: String(err) });
+  }
 }
 
 function updateLangPair() {
-  $("lang-pair").textContent =
-    ($("user-lang").value || "—") + " ⇄ " + ($("p1-lang").value || "—");
+  const p1 = $("p1-lang").value === "auto"
+    ? "auto-detect" : $("p1-lang").value;
+  $("lang-pair").textContent = ($("user-lang").value || "—") + " ⇄ " + p1;
 }
 
 /* ---------- navigation ---------- */
@@ -212,7 +258,6 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
     document.querySelectorAll(".view").forEach((v) =>
       v.classList.remove("active"));
     $("view-" + btn.dataset.view).classList.add("active");
-    if (btn.dataset.view === "conversation") updateBadge();
   });
 });
 
@@ -220,19 +265,34 @@ $("empty-start-btn").addEventListener("click", () =>
   document.querySelector('.nav-btn[data-view="audio"]').click());
 $("refresh-devices").addEventListener("click", refreshDevices);
 $("start-btn").addEventListener("click", startSession);
-$("stop-btn").addEventListener("click", () => pywebview.api.stop_session());
-$("pause-btn").addEventListener("click", () =>
-  pywebview.api.set_paused(sessionState !== "paused"));
+$("stop-btn").addEventListener("click", async () => {
+  if (!window.pywebview || !window.pywebview.api) return;
+  const res = JSON.parse(await pywebview.api.stop_session());
+  if (!res.ok) showError(res.error || "Stop failed.");
+});
+$("pause-btn").addEventListener("click", async () => {
+  if (!window.pywebview || !window.pywebview.api) return;
+  await pywebview.api.set_paused(sessionState !== "paused");
+});
 $("p1-lang").addEventListener("change", updateLangPair);
 $("user-lang").addEventListener("change", updateLangPair);
 
 /* ---------- boot ---------- */
-function boot() {
+async function boot() {
+  let tries = 0;
+  while ((!window.pywebview || !window.pywebview.api) && tries < 100) {
+    await new Promise((r) => setTimeout(r, 120));
+    tries += 1;
+  }
   if (!window.pywebview || !window.pywebview.api) {
-    setTimeout(boot, 120);
+    showError("Could not reach the Python bridge. Restart the app.");
     return;
   }
-  pywebview.api.hello().then((h) => window.__push(JSON.parse(h)));
+  try {
+    window.__push(JSON.parse(await pywebview.api.hello()));
+  } catch (err) {
+    showError("Bridge hello failed: " + err);
+  }
   refreshDevices();
   onStatus({ state: "idle" });
 }
