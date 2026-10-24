@@ -45,7 +45,11 @@ SYSTEM_PROMPT = (
     "5. THANKS PHRASES: When the text contains a thanks variant — 'appreciate "
     "it', 'many thanks', 'thanks a lot', 'much appreciated' — render it as the "
     "standard natural 'thank you' equivalent in the target language, never as "
-    "a literal translation of the variant."
+    "a literal translation of the variant.\n"
+    "6. TARGET LANGUAGE IS ABSOLUTE: Always output the text in the requested "
+    "target language — even if the source is already in it, even if a language "
+    "code looks ambiguous, even for single words. Never switch to English or "
+    "any other language unless it is the requested target."
 )
 
 
@@ -92,9 +96,16 @@ class Translator:
         if not text.strip():
             raise ValueError("Cannot translate empty text.")
 
-        tgt = target_language_name or target_language
+        # Use full language names: models misread bare ISO codes ("el" reads
+        # as the Spanish article, not Greek). Mirrors translate_stream().
+        tgt = target_language_name or SUPPORTED_LANGUAGES.get(
+            target_language, target_language)
+        src = (
+            SUPPORTED_LANGUAGES.get(source_language, source_language)
+            if source_language else None
+        )
         src_hint = (
-            f" The source language is {source_language}." if source_language
+            f" The source language is {src}." if src
             else " The source language should be auto-detected."
         )
         user_prompt = (

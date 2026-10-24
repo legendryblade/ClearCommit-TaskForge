@@ -54,7 +54,11 @@ function onHello(payload) {
     const exists = Array.from(sel.options).some((o) => o.value === value);
     sel.value = exists ? value : fallback;
   };
-  restore(p1, keepP1 || "auto", "auto");
+  // Translation target must be explicit — "auto" defaults the target to
+  // English, which looks like "it won't change language". Default to Spanish
+  // (the app's documented default) but never force auto on the user.
+  const isReal = (v) => v && v !== "auto";
+  restore(p1, isReal(keepP1) ? keepP1 : "es", "es");
   restore(ul, keepUl || "en", "en");
   updateLangPair();
 }
