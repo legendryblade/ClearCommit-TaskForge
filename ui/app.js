@@ -269,6 +269,7 @@ async function startSession() {
       input_device: Number($("input-device").value),
       output_device: Number($("output-device").value),
       stt_backend: $("stt-backend").value,
+      stt_quality: $("stt-quality").value,
       tts_mode: $("tts-mode").value,
       monitor_tts: $("monitor-tts").checked,
     }));

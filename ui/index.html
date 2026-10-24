@@ -138,8 +138,14 @@
             <option value="local">Local — offline Whisper (no key, no network;
               downloads the model on first use)</option>
           </select>
-          <p class="help">Local Whisper is fully private and works offline,
-             but is slower and downloads ~150&nbsp;MB on first run.</p>
+          <label for="stt-quality">Cloud model quality</label>
+          <select id="stt-quality">
+            <option value="accurate">Accurate — whisper-large-v3 (best words)</option>
+            <option value="fast">Fast — whisper-large-v3-turbo (lower latency)</option>
+          </select>
+          <p class="help">Fast cuts recognition latency on long calls; Accurate
+             is best when wording matters. Local Whisper always uses its own
+             offline model. Applies at session start.</p>
         </div>
       </div>
     </section>

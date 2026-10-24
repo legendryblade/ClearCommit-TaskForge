@@ -199,6 +199,12 @@ class Backend:
                 self.interp.transcriber_user = LocalWhisperTranscriber()
                 self.push(bp.status_event("starting",
                                           "Local Whisper model loading…"))
+            elif str(cfg.get("stt_quality") or "accurate").lower() == "fast":
+                # Groq: whisper-large-v3-turbo instead of whisper-large-v3
+                self.interp.set_stt_model(True, side="p1")
+                self.interp.set_stt_model(True, side="user")
+                self.push(bp.status_event("starting",
+                                          "STT model: fast (turbo)"))
         except Exception as exc:  # noqa: BLE001
             logger.exception("Pipeline construction failed")
             with self._lock:
