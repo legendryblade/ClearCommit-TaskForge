@@ -88,13 +88,16 @@
         </div>
         <div class="card">
           <h3>Languages</h3>
-          <label for="p1-lang">Their language (Person 1)</label>
+          <label for="p1-lang">Their language (Person 1) — your speech is
+             translated INTO this</label>
           <select id="p1-lang"></select>
-          <label for="user-lang">Your language</label>
+          <label for="user-lang">Your language — their speech is translated
+             INTO this</label>
           <select id="user-lang"></select>
-          <p class="help"><b>Auto-detect</b> lets the recognizer identify the
-             spoken language per utterance. Otherwise one language is fixed
-             per side.</p>
+          <p class="help"><b>Auto-detect</b> only affects which language the
+             recognizer expects to <i>hear</i>; the translation target is the
+             explicit language selected above. Pick a real language for
+             Person&nbsp;1 or your speech will be translated into English.</p>
         </div>
         <div class="card">
           <h3>API keys</h3>

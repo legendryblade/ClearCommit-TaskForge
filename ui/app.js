@@ -5,6 +5,7 @@ const $ = (id) => document.getElementById(id);
 const feed = $("feed");
 const clarityLists = [$("clarity-list"), $("clarity-list-2")];
 const pendingByUid = new Map();   // uid -> caption element awaiting translation
+const orphanTrans = new Map();    // uid -> translation that arrived before its original
 const findings = new Map();
 let sessionState = "idle";
 
@@ -38,13 +39,23 @@ function onHello(payload) {
   $("clarity-off").classList.toggle("hidden", !!payload.clarity_provider);
   $("clarity-off-2").classList.toggle("hidden", !!payload.clarity_provider);
   const p1 = $("p1-lang"), ul = $("user-lang");
-  p1.innerHTML = ""; ul.innerHTML = "";
-  for (const code of payload.languages || []) {
-    p1.add(new Option(code, code));
-    ul.add(new Option(code, code));
+  // Preserve the user's selections across hello refreshes; only default on
+  // the very first population.
+  const keepP1 = p1.value, keepUl = ul.value;
+  if (!p1.options.length) {
+    p1.innerHTML = ""; ul.innerHTML = "";
+    for (const code of payload.languages || []) {
+      p1.add(new Option(code, code));
+      ul.add(new Option(code, code));
+    }
+    p1.add(new Option("Auto-detect source speech", "auto"));
   }
-  p1.add(new Option("Auto-detect", "auto"));
-  p1.value = "auto"; ul.value = "en";
+  const restore = (sel, value, fallback) => {
+    const exists = Array.from(sel.options).some((o) => o.value === value);
+    sel.value = exists ? value : fallback;
+  };
+  restore(p1, keepP1 || "auto", "auto");
+  restore(ul, keepUl || "en", "en");
   updateLangPair();
 }
 
@@ -102,11 +113,26 @@ function onCaption(ev) {
       new Date().toLocaleTimeString();
     el.querySelector(".cap-orig").textContent = ev.text;
     feed.appendChild(el);
-    pendingByUid.set(ev.uid, el);
+    const early = orphanTrans.get(ev.uid);
+    if (early) {   // translation arrived first (parallel workers) — merge now
+      const t = el.querySelector(".cap-trans");
+      t.textContent = early.text;
+      t.classList.remove("hidden");
+      orphanTrans.delete(ev.uid);
+    } else {
+      pendingByUid.set(ev.uid, el);
+    }
     feed.scrollTop = feed.scrollHeight;
   } else if (ev.kind === "trans") {
     const el = pendingByUid.get(ev.uid);
-    if (!el) return;
+    if (!el) {
+      // Never drop a translation silently: hold it until the original lands.
+      orphanTrans.set(ev.uid, ev);
+      if (orphanTrans.size > 100) {
+        orphanTrans.delete(orphanTrans.keys().next().value);
+      }
+      return;
+    }
     const t = el.querySelector(".cap-trans");
     t.textContent = ev.text;
     t.classList.remove("hidden");
