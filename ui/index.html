@@ -47,8 +47,12 @@
         <div class="feed-col">
           <div id="empty-state" class="empty-state">
             <h2>No conversation yet</h2>
-            <p>Pick your devices and languages, then start a session. Recognized
-               speech appears here as it is finalized — nothing is simulated.</p>
+            <p><b>Two-way voice:</b> Person&nbsp;1 (system/Discord audio) is
+               captured and translated into English captions. Your microphone
+               is translated into their language and <b>spoken aloud</b>
+               through the TTS output device you pick.</p>
+            <p>Add your keys, pick devices and languages, then start.
+               Nothing is simulated.</p>
             <button class="btn primary" id="empty-start-btn">Go to audio setup</button>
           </div>
           <div id="feed" class="feed" aria-live="polite" aria-label="Live transcript"></div>
@@ -91,6 +95,37 @@
           <p class="help"><b>Auto-detect</b> lets the recognizer identify the
              spoken language per utterance. Otherwise one language is fixed
              per side.</p>
+        </div>
+        <div class="card">
+          <h3>API keys</h3>
+          <p class="help" style="margin-top:0">Paste keys here — no .env editing.
+             Stored locally in your user profile, never shown again or sent
+             anywhere except the provider you picked.</p>
+          <label for="key-groq">Groq — speech recognition + translation <span id="st-groq"></span></label>
+          <input type="password" id="key-groq" autocomplete="off" placeholder="gsk_…">
+          <label for="key-deepgram">Deepgram — TTS voice <span id="st-deepgram"></span></label>
+          <input type="password" id="key-deepgram" autocomplete="off" placeholder="…">
+          <label for="key-elevenlabs">ElevenLabs — fallback TTS <span id="st-elevenlabs"></span></label>
+          <input type="password" id="key-elevenlabs" autocomplete="off" placeholder="…">
+          <label for="key-openrouter">OpenRouter — clarity AI <span id="st-openrouter"></span></label>
+          <input type="password" id="key-openrouter" autocomplete="off" placeholder="sk-or-…">
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn primary" id="save-keys-btn">Save keys</button>
+          </div>
+          <p class="help" id="keys-help">Leave a field blank to keep the current key.</p>
+        </div>
+        <div class="card">
+          <h3>TTS (spoken translation)</h3>
+          <label for="tts-mode">Voice style</label>
+          <select id="tts-mode">
+            <option value="utterance">Natural — speak after each sentence</option>
+            <option value="streaming">Streaming — start speaking sooner</option>
+          </select>
+          <label class="check"><input type="checkbox" id="monitor-tts">
+            Play TTS on this PC too (for testing)</label>
+          <p class="help">Your translated speech is sent to the <b>TTS output
+             device</b> selected above — route that to CABLE Input for Discord.
+             Monitor is only for checking the voice locally.</p>
         </div>
         <div class="card">
           <h3>Speech recognition</h3>

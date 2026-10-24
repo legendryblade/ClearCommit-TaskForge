@@ -30,6 +30,11 @@ function onHello(payload) {
   $("credentials-note").textContent =
     label(creds.groq, "Groq") + " · " + label(creds.deepgram, "Deepgram") +
     " · " + label(creds.elevenlabs, "ElevenLabs");
+  for (const name of ["groq", "deepgram", "elevenlabs", "openrouter"]) {
+    const el = $("st-" + name);
+    if (el) el.textContent = creds[name] ? "— set ✓" : "— not set";
+    if (el) el.style.color = creds[name] ? "var(--green)" : "var(--dim)";
+  }
   $("clarity-off").classList.toggle("hidden", !!payload.clarity_provider);
   $("clarity-off-2").classList.toggle("hidden", !!payload.clarity_provider);
   const p1 = $("p1-lang"), ul = $("user-lang");
@@ -234,6 +239,8 @@ async function startSession() {
       input_device: Number($("input-device").value),
       output_device: Number($("output-device").value),
       stt_backend: $("stt-backend").value,
+      tts_mode: $("tts-mode").value,
+      monitor_tts: $("monitor-tts").checked,
     }));
     if (!res.ok) showError(res.error || "Could not start the session.");
   } catch (err) {
@@ -276,6 +283,31 @@ $("pause-btn").addEventListener("click", async () => {
 });
 $("p1-lang").addEventListener("change", updateLangPair);
 $("user-lang").addEventListener("change", updateLangPair);
+
+async function saveKeys() {
+  if (!window.pywebview || !window.pywebview.api) return;
+  const payload = {};
+  for (const name of ["groq", "deepgram", "elevenlabs", "openrouter"]) {
+    const v = $("key-" + name).value.trim();
+    if (v) payload[name] = v;
+  }
+  if (!Object.keys(payload).length) {
+    $("keys-help").textContent = "No new keys entered — nothing to save.";
+    return;
+  }
+  try {
+    const res = JSON.parse(await pywebview.api.save_keys(payload));
+    if (res.ok) {
+      for (const name of Object.keys(payload)) $("key-" + name).value = "";
+      $("keys-help").textContent = res.message || "Keys saved.";
+    } else {
+      $("keys-help").textContent = res.error || "Could not save keys.";
+    }
+  } catch (err) {
+    $("keys-help").textContent = "Save failed: " + err;
+  }
+}
+$("save-keys-btn").addEventListener("click", saveKeys);
 
 /* ---------- boot ---------- */
 async function boot() {

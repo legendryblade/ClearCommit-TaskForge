@@ -44,6 +44,28 @@ def _list_languages():
         return ["en", "es"]
 
 
+KEY_ENV = {
+    "groq": "GROQ_API_KEY",
+    "deepgram": "DEEPGRAM_API_KEY",
+    "elevenlabs": "ELEVENLABS_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+}
+KEYS_FILE = (Path(os.environ.get("APPDATA") or str(ROOT))
+             / "ClearCommitTaskForge" / "keys.json")
+
+
+def _load_saved_keys():
+    """Keys entered in the UI are stored locally and applied at startup."""
+    try:
+        data = json.loads(KEYS_FILE.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 - missing/corrupt file is not fatal
+        return
+    for name, value in (data or {}).items():
+        env = KEY_ENV.get(name)
+        if env and isinstance(value, str) and value.strip():
+            os.environ[env] = value.strip()
+
+
 def _credentials():
     return {
         "groq": bool(os.environ.get("GROQ_API_KEY")),
@@ -164,6 +186,8 @@ class Backend:
                                    else None),
                 person1_loopback=True,
                 force_language=not auto,
+                tts_mode=str(cfg.get("tts_mode") or "utterance"),
+                monitor_tts=bool(cfg.get("monitor_tts")),
                 groq_api_key=os.environ.get("GROQ_API_KEY"),
                 deepgram_api_key=os.environ.get("DEEPGRAM_API_KEY"),
                 on_final_utterance=self._on_final_utterance,
@@ -251,6 +275,39 @@ class Backend:
     def list_audio_devices(self) -> str:
         return json.dumps(_audio_devices())
 
+    def save_keys(self, keys: dict) -> str:
+        """Persist UI-entered API keys locally (plaintext, user profile) and
+        apply them to the running process. Values are never returned."""
+        saved = {}
+        for name, value in (keys or {}).items():
+            env = KEY_ENV.get(name)
+            if env and isinstance(value, str) and value.strip():
+                os.environ[env] = value.strip()
+                saved[name] = value.strip()
+        if saved:
+            try:
+                KEYS_FILE.parent.mkdir(parents=True, exist_ok=True)
+                existing = {}
+                try:
+                    existing = json.loads(KEYS_FILE.read_text(encoding="utf-8"))
+                except Exception:  # noqa: BLE001
+                    existing = {}
+                existing.update(saved)
+                KEYS_FILE.write_text(json.dumps(existing), encoding="utf-8")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("Could not persist keys: %s", exc)
+                return json.dumps({"ok": False,
+                                   "error": f"Could not save keys: {exc}"})
+        if self.clarity is None:
+            self._make_clarity_engine()
+        creds = _credentials()
+        self.push(bp.hello_payload(_list_languages(), creds,
+                                   self.clarity is not None))
+        restart_hint = ("Keys saved. Start (or restart) the session to use "
+                        "them." if not saved else "Keys saved.")
+        return json.dumps({"ok": True, "credentials": creds,
+                           "message": restart_hint})
+
     def stop_session(self) -> str:
         try:
             if self.interp is not None:
@@ -300,6 +357,7 @@ backend = Backend()
 def selftest() -> int:
     """Headless verification that the frozen build has everything it needs."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)-7s | %(name)s | %(message)s")
+    _load_saved_keys()
     ok = True
     for mod in ("wave", "numpy", "requests", "sounddevice", "webview"):
         try:
@@ -330,6 +388,7 @@ def main(argv=None):
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s | %(levelname)-7s | %(name)s | "
                                "%(message)s")
+    _load_saved_keys()
     window = webview.create_window(
         "ClearCommit — live interpretation",
         str(UI_DIR / "index.html"),
